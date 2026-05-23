@@ -1,0 +1,1141 @@
+
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PREDICTOR TOOL</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+
+    <!-- Firebase Compat SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+
+    <style>
+    /* ===== ROOT VARS ===== */
+    :root {
+        --neon-purple: #8B00FF;
+        --neon-cyan:   #00f2fe;
+        --neon-pink:   #ff44cc;
+        --gold:        #FFD700;
+        --bg-dark:     #06060f;
+        --panel-bg:    rgba(8, 8, 22, 0.98);
+        --border-glow: rgba(100, 0, 255, 0.55);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; font-family: 'Orbitron', sans-serif; }
+    body, html { height: 100%; width: 100%; background: #000; overflow: hidden; color: #fff; }
+
+    /* ============================
+       ENTRY SCREEN
+    ============================= */
+    #entry-screen {
+        position: fixed; inset: 0; z-index: 9999;
+        background: linear-gradient(rgba(0,0,0,.75), rgba(0,0,0,.75)), url('mickey.png') no-repeat center/cover;
+        display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px;
+    }
+    .entry-title {
+        font-size: 30px; font-weight: 900; letter-spacing: 3px; text-align: center;
+        background: linear-gradient(90deg, #fff, #b366ff, var(--neon-cyan));
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        text-shadow: none;
+    }
+    .entry-sub { font-size: 11px; color: var(--neon-cyan); letter-spacing: 3px; }
+    .main-btn {
+        margin-top: 28px; padding: 14px 40px; font-size: 16px; font-weight: 700; color: #fff;
+        background: linear-gradient(45deg, #6200ea, var(--neon-purple));
+        border: none; border-radius: 50px; cursor: pointer;
+        box-shadow: 0 0 25px rgba(98,0,234,.6); letter-spacing: 2px;
+        transition: transform .2s;
+    }
+    .main-btn:active { transform: scale(.96); }
+
+    /* ============================
+       GAME FRAME
+    ============================= */
+    #game-frame { display: none; position: fixed; inset: 0; border: none; z-index: 1; width: 100%; height: 100%; }
+
+    /* ============================
+       FLOATING CIRCLE
+    ============================= */
+    #floating-circle {
+        display: none; position: fixed; right: 18px; top: 70%;
+        width: 68px; height: 68px; border-radius: 50%; z-index: 10000;
+        background: url('flot.png') no-repeat center/cover;
+        border: 2px solid var(--neon-cyan);
+        box-shadow: 0 0 18px rgba(0,242,254,.55);
+        cursor: pointer; touch-action: none;
+    }
+
+    /* ============================
+       BACKDROP
+    ============================= */
+    #modal-backdrop {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,.55); z-index: 10001;
+    }
+
+    /* ============================
+       MODE CHANGE POPUP
+    ============================= */
+    #mode-popup {
+        display: none; position: fixed; left: 50%; bottom: 28%;
+        transform: translateX(-50%) scale(.85);
+        background: linear-gradient(135deg, #12002a, #0a0018);
+        border: 1px solid rgba(139,0,255,.7); border-radius: 14px;
+        padding: 12px 28px; z-index: 10020; text-align: center;
+        box-shadow: 0 0 24px rgba(139,0,255,.6);
+        animation: popIn .25s ease forwards;
+        min-width: 200px;
+    }
+    #mode-popup .mp-label { font-size: 9px; color: rgba(255,255,255,.5); letter-spacing: 3px; }
+    #mode-popup .mp-text  { font-size: 13px; color: var(--neon-cyan); font-weight: 900; margin-top: 4px; letter-spacing: 1px; }
+    @keyframes popIn {
+        to { transform: translateX(-50%) scale(1); }
+    }
+
+    /* ============================
+       PANEL BASE (shared)
+    ============================= */
+    .panel-modal {
+        display: none; position: fixed; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 310px; max-width: 96vw;
+        background: linear-gradient(180deg, #0c0c22 0%, #06060f 100%);
+        border: 1.5px solid var(--border-glow);
+        border-radius: 18px; z-index: 10002; overflow: hidden;
+        box-shadow: 0 0 35px rgba(100,0,255,.35), 0 0 80px rgba(0,242,254,.08);
+    }
+    .panel-modal.scrollable { max-height: 90vh; overflow-y: auto; }
+
+    /* scrollbar */
+    .panel-modal::-webkit-scrollbar { width: 3px; }
+    .panel-modal::-webkit-scrollbar-thumb { background: rgba(100,0,255,.45); border-radius: 2px; }
+
+    /* modal header */
+    .modal-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 16px 10px;
+        border-bottom: 1px solid rgba(100,0,255,.28);
+        position: sticky; top: 0;
+        background: linear-gradient(180deg, #0c0c22, #0a0a1c);
+        z-index: 2;
+    }
+    .modal-title-spacer { width: 28px; }
+    .modal-title-center {
+        flex: 1; text-align: center;
+        font-size: 16px; font-weight: 900; letter-spacing: 2px;
+    }
+    .modal-close {
+        width: 28px; height: 28px; border-radius: 50%;
+        background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
+        color: #fff; font-size: 13px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+
+    /* ============================
+       PREDICTOR PANEL
+    ============================= */
+    #predictor-panel .modal-title-center {
+        background: linear-gradient(90deg, #fff 30%, #b366ff);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* coin row */
+    .coin-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px 8px;
+    }
+    .coin-balance-pill {
+        display: flex; align-items: center; gap: 7px;
+        background: rgba(255,215,0,.1); border: 1px solid rgba(255,215,0,.3);
+        border-radius: 22px; padding: 6px 14px;
+    }
+    .coin-balance-pill .cb-num { color: var(--gold); font-size: 14px; font-weight: 700; }
+    .buy-coin-img-btn {
+        border: none; background: none; padding: 0; cursor: pointer;
+        border-radius: 22px; overflow: hidden;
+        width: 120px; height: 36px;
+        box-shadow: 0 0 14px rgba(98,0,234,.5);
+    }
+    .buy-coin-img-btn img { width: 100%; height: 100%; object-fit: cover; border-radius: 22px; display: block; }
+
+    /* period box */
+    .period-box {
+        margin: 0 14px 10px;
+        background: rgba(0,0,0,.45); border: 1px solid rgba(100,0,255,.3);
+        border-radius: 11px; padding: 9px 14px;
+    }
+    .period-box .pb-label {
+        font-size: 8px; letter-spacing: 3px; color: rgba(255,255,255,.4);
+        text-align: center; margin-bottom: 5px;
+    }
+    .pb-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .pb-num { color: var(--neon-cyan); font-size: 14px; font-weight: 700; letter-spacing: .5px; }
+    .pb-copy {
+        width: 22px; height: 22px; background: rgba(0,242,254,.08);
+        border: 1px solid rgba(0,242,254,.3); border-radius: 5px;
+        color: var(--neon-cyan); font-size: 10px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+    }
+
+    /* game selector */
+    .game-selector {
+        margin: 0 14px 12px;
+        background: rgba(0,0,0,.4); border: 1px solid rgba(100,0,255,.28);
+        border-radius: 10px; padding: 10px 14px;
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .gs-left { display: flex; align-items: center; gap: 8px; }
+    .gs-left i { color: rgba(255,255,255,.55); font-size: 13px; }
+    .gs-left span { color: #fff; font-size: 12px; font-weight: 600; }
+    .gs-right i { color: rgba(255,255,255,.45); font-size: 11px; }
+
+    /* prediction label */
+    .pred-label-wrap { padding: 0 14px 7px; }
+    .pred-label { font-size: 9px; color: #b366ff; letter-spacing: 3px; text-align: center; }
+
+    /* prediction display */
+    .pred-display {
+        margin: 0 14px 12px; position: relative;
+        border-radius: 12px; overflow: hidden;
+        min-height: 100px;
+        display: flex; align-items: center; justify-content: center;
+        border: 1px solid rgba(100,0,255,.4);
+        background: #000;
+    }
+    .pred-display .pd-bg {
+        position: absolute; inset: 0;
+        object-fit: cover; opacity: .45; width: 100%; height: 100%;
+    }
+    .pd-arr { position: absolute; top: 50%; transform: translateY(-50%); color: rgba(0,242,254,.5); font-size: 18px; z-index: 2; }
+    .pd-arr-l { left: 11px; }
+    .pd-arr-r { right: 11px; }
+
+    .pred-text {
+        position: relative; z-index: 2;
+        font-size: 54px; font-weight: 900; letter-spacing: 5px;
+        text-transform: uppercase;
+    }
+    .pred-text.big-mode {
+        color: #c044ff;
+        text-shadow: 0 0 20px rgba(192,68,255,.85), 0 0 45px rgba(192,68,255,.4);
+    }
+    .pred-text.small-mode {
+        color: var(--neon-cyan);
+        text-shadow: 0 0 20px rgba(0,242,254,.85), 0 0 45px rgba(0,242,254,.4);
+    }
+    .pred-text.wait-mode {
+        color: rgba(255,255,255,.3); font-size: 20px; letter-spacing: 2px; text-shadow: none;
+    }
+    .pred-text.analyzing {
+        color: var(--gold); font-size: 18px; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,215,0,.5);
+    }
+
+    /* confidence */
+    .conf-section { margin: 0 14px 12px; }
+    .conf-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .conf-label { font-size: 9px; color: rgba(255,255,255,.55); letter-spacing: 2px; }
+    .conf-val { font-size: 11px; color: var(--neon-cyan); font-weight: 700; }
+    .conf-bar { height: 5px; background: rgba(255,255,255,.1); border-radius: 3px; overflow: hidden; }
+    .conf-fill {
+        height: 100%; border-radius: 3px;
+        background: linear-gradient(90deg, #6200ea, var(--neon-cyan));
+        transition: width .6s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* generate section */
+    .gen-section { padding: 0 14px 14px; }
+    .gen-top-img { width: 100%; display: block; border-radius: 8px; margin-bottom: 5px; }
+    .gen-btn {
+        width: 100%; padding: 13px; border: none; border-radius: 11px; cursor: pointer;
+        background: linear-gradient(90deg, #7000ff, var(--neon-cyan));
+        color: #fff; font-size: 12px; font-weight: 900; letter-spacing: 2px;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        box-shadow: 0 0 22px rgba(112,0,255,.5);
+        transition: transform .15s;
+    }
+    .gen-btn:active { transform: scale(.97); }
+    .gen-footer { text-align: center; font-size: 9px; color: rgba(255,255,255,.45); margin-top: 8px; letter-spacing: 2px; }
+    .gen-footer i { color: var(--neon-cyan); }
+
+    /* ============================
+       BUY COINS MODAL  ← UPDATED
+    ============================= */
+    #buy-coins-modal {
+        width: 360px; /* Bigger width */
+        max-width: 98vw;
+    }
+    #buy-coins-modal .modal-title-center {
+        background: linear-gradient(90deg, #ff66cc, #b366ff);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        font-size: 20px; letter-spacing: 3px;
+    }
+
+    .bc-balance {
+        margin: 14px 14px 10px; display: flex; align-items: center; gap: 12px;
+        background: rgba(0,0,0,.5); border: 1px solid rgba(255,215,0,.28);
+        border-radius: 14px; padding: 14px 16px;
+    }
+    .bc-balance .coin-big { font-size: 30px; }
+    .bc-balance .bc-label { font-size: 9px; color: rgba(255,255,255,.45); letter-spacing: 2px; }
+    .bc-balance .bc-num { font-size: 22px; font-weight: 700; }
+    .bc-balance .bc-num span { color: var(--gold); }
+
+    /* Plans grid - 3 columns, only image inside card */
+    .plans-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+        padding: 0 14px 18px;
+    }
+
+    .plan-card {
+        background: rgba(5,5,18,.9);
+        border: 1.5px solid rgba(100,0,255,.38);
+        border-radius: 14px;
+        overflow: hidden;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    /* Only image — no price text, no coin text */
+    .plan-card .pc-img-wrap {
+        width: 100%;
+        padding: 8px 8px 5px;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .plan-card .pc-img {
+        width: 100%;
+        height: 72px;
+        object-fit: contain;
+        display: block;
+    }
+
+    .plan-buy {
+        width: 100%;
+        padding: 9px;
+        border: none;
+        background: linear-gradient(90deg, #8a00ff, #00c6ff);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 900;
+        cursor: pointer;
+        letter-spacing: 1.5px;
+        transition: opacity .2s;
+        font-family: 'Orbitron', sans-serif;
+    }
+    .plan-buy:active { opacity: .8; }
+
+    /* ============================
+       PAYMENT MODAL
+    ============================= */
+    #payment-modal .modal-title-center { font-size: 15px; letter-spacing: 3px; }
+
+    .sel-plan-box {
+        margin: 12px 14px; display: flex; justify-content: space-between; align-items: center;
+        background: rgba(0,0,0,.4); border: 1px solid rgba(100,0,255,.3);
+        border-radius: 12px; padding: 12px 14px;
+    }
+    .sp-left .sp-lbl { font-size: 8px; color: #b366ff; letter-spacing: 2px; }
+    .sp-left .sp-amt { font-size: 24px; font-weight: 900; }
+    .sp-left .sp-get { font-size: 9px; color: rgba(255,255,255,.4); }
+    .sp-right { display: flex; align-items: center; gap: 8px; }
+    .sp-right img { width: 38px; height: 38px; object-fit: contain; }
+    .sp-right .sp-coins { font-size: 15px; font-weight: 700; color: var(--neon-cyan); }
+
+    .qr-section {
+        margin: 0 14px 10px;
+        background: rgba(0,0,0,.4); border: 1px solid rgba(100,0,255,.3);
+        border-radius: 12px; padding: 14px; text-align: center;
+    }
+    .qr-section .qs-label { font-size: 10px; color: #b366ff; letter-spacing: 3px; margin-bottom: 10px; }
+    .qr-code-wrap {
+        display: inline-block; padding: 8px; background: #fff; border-radius: 8px;
+        border: 2px solid rgba(100,0,255,.5);
+    }
+    .qr-code-wrap img { width: 145px; height: 145px; display: block; }
+    .qs-hint { font-size: 9px; color: rgba(255,255,255,.45); margin-top: 8px; }
+    .upi-row { display: flex; justify-content: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .upi-tag {
+        font-size: 9px; font-weight: 700; color: rgba(255,255,255,.65);
+        padding: 3px 8px; background: rgba(255,255,255,.06);
+        border: 1px solid rgba(255,255,255,.12); border-radius: 4px;
+    }
+
+    .pay-details-section { margin: 0 14px 10px; }
+    .pd-label { font-size: 9px; color: #b366ff; letter-spacing: 3px; text-align: center; margin-bottom: 7px; }
+    .pd-grid {
+        display: grid; grid-template-columns: 1fr 1fr;
+        border: 1px solid rgba(100,0,255,.3); border-radius: 10px; overflow: hidden;
+    }
+    .pd-cell { padding: 10px; text-align: center; border-right: 1px solid rgba(100,0,255,.3); }
+    .pd-cell:last-child { border-right: none; }
+    .pd-cell .dc-lbl { font-size: 9px; color: rgba(255,255,255,.45); }
+    .pd-cell .dc-val { font-size: 15px; font-weight: 700; color: var(--neon-cyan); }
+
+    .utr-section { margin: 0 14px 10px; }
+    .utr-lbl { font-size: 9px; color: #b366ff; letter-spacing: 3px; text-align: center; margin-bottom: 7px; }
+    .utr-wrap {
+        display: flex; align-items: center;
+        background: rgba(0,0,0,.6); border: 1px solid rgba(100,0,255,.4);
+        border-radius: 10px; padding: 0 12px;
+    }
+    .utr-wrap input {
+        flex: 1; background: none; border: none; outline: none;
+        color: #fff; font-family: 'Orbitron', sans-serif; font-size: 11px;
+        padding: 12px 8px 12px 0;
+    }
+    .utr-wrap input::placeholder { color: rgba(255,255,255,.28); }
+    .utr-wrap i { color: rgba(255,255,255,.35); }
+
+    .submit-pay-btn {
+        display: block; width: calc(100% - 28px); margin: 0 14px 7px;
+        padding: 14px; border: none; border-radius: 10px; cursor: pointer;
+        background: linear-gradient(90deg, #7000ff, var(--neon-cyan));
+        color: #fff; font-size: 12px; font-weight: 900; letter-spacing: 2px;
+        box-shadow: 0 0 20px rgba(112,0,255,.45);
+        transition: transform .15s; font-family: 'Orbitron', sans-serif;
+    }
+    .submit-pay-btn:active { transform: scale(.97); }
+    .secure-txt {
+        text-align: center; font-size: 9px; color: rgba(255,255,255,.38);
+        padding-bottom: 14px;
+    }
+    .secure-txt i { color: var(--neon-cyan); margin-right: 4px; }
+
+    /* countdown section */
+    #countdown-section { display: none; padding: 0 14px 16px; text-align: center; }
+    .cd-wait-txt { font-size: 11px; color: rgba(255,255,255,.55); margin-bottom: 8px; }
+    .cd-timer { font-size: 34px; font-weight: 900; color: var(--neon-cyan); margin-bottom: 10px; letter-spacing: 2px; }
+    .cd-status { font-size: 12px; color: rgba(255,255,255,.65); margin-bottom: 12px; min-height: 20px; }
+    .support-btn {
+        display: none; width: 100%; padding: 13px 10px; border: none; border-radius: 10px;
+        background: linear-gradient(90deg, #FF416C, #FF4B2B);
+        color: #fff; font-size: 11px; font-weight: 700; cursor: pointer;
+        letter-spacing: 1px; line-height: 1.6;
+        box-shadow: 0 0 14px rgba(255,65,108,.4); font-family: 'Orbitron', sans-serif;
+    }
+    .success-msg {
+        display: none; padding: 16px 0;
+        color: #00ff66; font-size: 14px; font-weight: 700; text-align: center;
+        text-shadow: 0 0 10px rgba(0,255,102,.5);
+    }
+
+    /* ============================
+       COIN 0 TOAST
+    ============================= */
+    #coin-toast {
+        display: none; position: fixed; bottom: 20%; left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255,65,44,.15); border: 1px solid rgba(255,65,44,.6);
+        border-radius: 10px; padding: 10px 22px;
+        font-size: 11px; color: #ff4b2b; letter-spacing: 1px;
+        z-index: 10030; text-align: center;
+    }
+
+    </style>
+</head>
+<body>
+
+<!-- ===== ENTRY SCREEN ===== -->
+<div id="entry-screen">
+    <div class="entry-title">PREDICTOR TOOL</div>
+    <div class="entry-sub">PREMIUM PREDICTION SYSTEM</div>
+    <button class="main-btn" onclick="startApp()">LOGIN &amp; ACTIVATE</button>
+</div>
+
+<!-- ===== GAME FRAME ===== -->
+<iframe id="game-frame" src=""></iframe>
+
+<!-- ===== FLOATING BUTTON ===== -->
+<div id="floating-circle"></div>
+
+<!-- ===== MODE CHANGE POPUP ===== -->
+<div id="mode-popup">
+    <div class="mp-label">⚡ MODE CHANGE</div>
+    <div class="mp-text" id="mode-popup-text">30 SEC FAST OPEN</div>
+</div>
+
+<!-- ===== COIN TOAST ===== -->
+<div id="coin-toast">⚠️ COINS KHATAM! BUY COINS TO CONTINUE</div>
+
+<!-- ===== BACKDROP ===== -->
+<div id="modal-backdrop" onclick="backdropClick()"></div>
+
+<!-- =====================================
+     PREDICTOR PANEL
+====================================== -->
+<div id="predictor-panel" class="panel-modal">
+
+    <!-- Header -->
+    <div class="modal-header">
+        <div class="modal-title-spacer"></div>
+        <div class="modal-title-center">PREDICTOR TOOL</div>
+        <div class="modal-close" onclick="closePanel()">✕</div>
+    </div>
+
+    <!-- Coin Row -->
+    <div class="coin-row">
+        <div class="coin-balance-pill">
+            <span>🪙</span>
+            <span class="cb-num" id="coin-display">0</span>
+        </div>
+        <button class="buy-coin-img-btn" onclick="openBuyCoins()">
+            <img src="301.png" alt="Buy Coin">
+        </button>
+    </div>
+
+    <!-- Period Number -->
+    <div class="period-box">
+        <div class="pb-label">· PERIOD NUMBER ·</div>
+        <div class="pb-row">
+            <span class="pb-num" id="period-display">LOADING...</span>
+            <button class="pb-copy" onclick="copyPeriod()" title="Copy">
+                <i class="fas fa-copy"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Selector -->
+    <div class="game-selector">
+        <div class="gs-left">
+            <i class="fas fa-clock"></i>
+            <span id="mode-label-display">WINGO 1 MIN</span>
+        </div>
+        <div class="gs-right"><i class="fas fa-chevron-down"></i></div>
+    </div>
+
+    <!-- Prediction Label -->
+    <div class="pred-label-wrap">
+        <div class="pred-label">PREDICTION</div>
+    </div>
+
+    <!-- Prediction Display -->
+    <div class="pred-display">
+        <img src="302.png" class="pd-bg" alt="">
+        <i class="fas fa-chevron-left pd-arr pd-arr-l"></i>
+        <div class="pred-text wait-mode" id="pred-text">TAP BELOW</div>
+        <i class="fas fa-chevron-right pd-arr pd-arr-r"></i>
+    </div>
+
+    <!-- Confidence -->
+    <div class="conf-section">
+        <div class="conf-row">
+            <span class="conf-label">CONFIDENCE</span>
+            <span class="conf-val" id="conf-val">--%</span>
+        </div>
+        <div class="conf-bar">
+            <div class="conf-fill" id="conf-fill" style="width:0%"></div>
+        </div>
+    </div>
+
+    <!-- Generate -->
+    <div class="gen-section">
+        <img src="303.png" class="gen-top-img" alt="">
+        <button class="gen-btn" onclick="generatePrediction()">
+            <i class="fas fa-crosshairs"></i> GENERATE PREDICTION
+        </button>
+        <div class="gen-footer">
+            <i class="fas fa-bolt"></i>&nbsp; 1 COIN = 1 PREDICT &nbsp;<i class="fas fa-bolt"></i>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================
+     BUY COINS MODAL  (UPDATED - sirf image, no price/coin text)
+====================================== -->
+<div id="buy-coins-modal" class="panel-modal scrollable">
+
+    <div class="modal-header">
+        <div class="modal-title-spacer"></div>
+        <div class="modal-title-center">BUY COINS</div>
+        <div class="modal-close" onclick="closeBuyCoins()">✕</div>
+    </div>
+
+    <!-- Balance -->
+    <div class="bc-balance">
+        <div class="coin-big">🪙</div>
+        <div>
+            <div class="bc-label">YOUR BALANCE</div>
+            <div class="bc-num"><span id="bc-balance-display">0</span> <span style="color:rgba(255,255,255,.6)">Coins</span></div>
+        </div>
+    </div>
+
+    <!-- Plans Grid — SIRF IMAGE, koi price/coin text nahi -->
+    <div class="plans-grid">
+        <!-- 1: ₹50 = 15 Coins -->
+        <div class="plan-card">
+            <div class="pc-img-wrap">
+                <img src="304.png" class="pc-img" alt="Plan 1">
+            </div>
+            <button class="plan-buy" onclick="selectPlan(50,15,'304.png')">BUY</button>
+        </div>
+        <!-- 2: ₹100 = 30 Coins -->
+        <div class="plan-card">
+            <div class="pc-img-wrap">
+                <img src="305.png" class="pc-img" alt="Plan 2">
+            </div>
+            <button class="plan-buy" onclick="selectPlan(100,30,'305.png')">BUY</button>
+        </div>
+        <!-- 3: ₹250 = 75 Coins -->
+        <div class="plan-card">
+            <div class="pc-img-wrap">
+                <img src="306.png" class="pc-img" alt="Plan 3">
+            </div>
+            <button class="plan-buy" onclick="selectPlan(250,75,'306.png')">BUY</button>
+        </div>
+        <!-- 4: ₹500 = 200 Coins -->
+        <div class="plan-card">
+            <div class="pc-img-wrap">
+                <img src="307.png" class="pc-img" alt="Plan 4">
+            </div>
+            <button class="plan-buy" onclick="selectPlan(500,200,'307.png')">BUY</button>
+        </div>
+        <!-- 5: ₹1000 = 500 Coins -->
+        <div class="plan-card">
+            <div class="pc-img-wrap">
+                <img src="308.png" class="pc-img" alt="Plan 5">
+            </div>
+            <button class="plan-buy" onclick="selectPlan(1000,500,'308.png')">BUY</button>
+        </div>
+        <!-- 6: ₹2500 = 999999999 Coins -->
+        <div class="plan-card">
+            <div class="pc-img-wrap">
+                <img src="309.png" class="pc-img" alt="Plan 6">
+            </div>
+            <button class="plan-buy" onclick="selectPlan(2500,999999999,'309.png')">BUY</button>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================
+     PAYMENT MODAL
+====================================== -->
+<div id="payment-modal" class="panel-modal scrollable">
+
+    <div class="modal-header">
+        <div class="modal-title-spacer"></div>
+        <div class="modal-title-center">BUY COINS</div>
+        <div class="modal-close" onclick="closePayment()">✕</div>
+    </div>
+
+    <!-- Selected Plan -->
+    <div class="sel-plan-box">
+        <div class="sp-left">
+            <div class="sp-lbl">SELECTED PLAN</div>
+            <div class="sp-amt" id="sp-amount">₹250</div>
+            <div class="sp-get">You will get</div>
+        </div>
+        <div class="sp-right">
+            <img id="sp-img" src="306.png" alt="">
+            <span class="sp-coins" id="sp-coins">75 Coins</span>
+        </div>
+    </div>
+
+    <!-- QR Section -->
+    <div class="qr-section">
+        <div class="qs-label">SCAN &amp; PAY</div>
+        <div class="qr-code-wrap">
+            <img src="310.png" alt="QR Code">
+        </div>
+        <div class="qs-hint">Scan QR code with any UPI App</div>
+        <div class="upi-row">
+            <span class="upi-tag">UPI</span>
+            <span class="upi-tag">G Pay</span>
+            <span class="upi-tag">PhonePe</span>
+            <span class="upi-tag">Paytm</span>
+        </div>
+    </div>
+
+    <!-- Payment Details -->
+    <div class="pay-details-section">
+        <div class="pd-label">PAYMENT DETAILS</div>
+        <div class="pd-grid">
+            <div class="pd-cell">
+                <div class="dc-lbl">Amount</div>
+                <div class="dc-val" id="pd-amount">₹250</div>
+            </div>
+            <div class="pd-cell">
+                <div class="dc-lbl">Coins</div>
+                <div class="dc-val" id="pd-coins">75 Coins</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- UTR Form -->
+    <div id="utr-form-wrap">
+        <div class="utr-section">
+            <div class="utr-lbl">UTR / TRANSACTION ID</div>
+            <div class="utr-wrap">
+                <input type="text" id="utr-input" placeholder="Enter UTR / Transaction ID">
+                <i class="fas fa-barcode"></i>
+            </div>
+        </div>
+        <button class="submit-pay-btn" onclick="submitPayment()">SUBMIT PAYMENT</button>
+        <div class="secure-txt"><i class="fas fa-lock"></i> Your payment is secured and encrypted</div>
+    </div>
+
+    <!-- Countdown Section (hidden initially) -->
+    <div id="countdown-section">
+        <div class="cd-wait-txt" id="cd-wait-txt">Payment submitted. Waiting for admin approval...</div>
+        <div class="cd-timer" id="cd-timer">5:00</div>
+        <div class="cd-status" id="cd-status">⏳ Verifying payment...</div>
+        <button class="support-btn" id="support-btn"
+            onclick="window.open('https://t.me/Predict456','_blank')">
+            ⚠️ 5 MINUTES OVER BUT COIN NOT ADDED<br>
+            📞 CUSTOMER SUPPORT
+        </button>
+        <div class="success-msg" id="success-msg">
+            ✅ PAYMENT SUCCESSFUL!<br>
+            <span style="font-size:12px;color:rgba(255,255,255,.7)">Coins added to your balance!</span>
+        </div>
+    </div>
+
+</div>
+
+<!-- ===== SCRIPTS ===== -->
+<script>
+// ===================================================
+// FIREBASE INIT
+// ===================================================
+const firebaseConfig = {
+    apiKey:            "AIzaSyCShaI7FfDCvZ9t21RdBk7ATjk5PQUAeQI",
+    authDomain:        "wingo-predictor-hub.firebaseapp.com",
+    databaseURL:       "https://wingo-predictor-hub-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:         "wingo-predictor-hub",
+    storageBucket:     "wingo-predictor-hub.firebasestorage.app",
+    messagingSenderId: "510934626240",
+    appId:             "1:510934626240:web:8df9c4b4a78964f15d2225",
+    measurementId:     "G-TTM7WXC4DW"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+try { firebase.analytics(); } catch(e) {}
+
+// ===================================================
+// USER ID  (persistent via localStorage)
+// ===================================================
+function getOrCreateUserId() {
+    let uid = localStorage.getItem('pt_uid');
+    if (!uid) {
+        uid = 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+        localStorage.setItem('pt_uid', uid);
+    }
+    return uid;
+}
+const UID = getOrCreateUserId();
+
+// ===================================================
+// COIN SYSTEM
+// ===================================================
+let coinBalance = 0;
+
+function initCoinListener() {
+    db.ref('users/' + UID + '/coins').on('value', snap => {
+        coinBalance = snap.val() || 0;
+        updateCoinUI();
+    });
+}
+
+function updateCoinUI() {
+    const v = coinBalance > 999999 ? '∞' : coinBalance;
+    document.getElementById('coin-display').textContent       = v;
+    document.getElementById('bc-balance-display').textContent = v;
+}
+
+function deductCoin() {
+    return new Promise(resolve => {
+        if (coinBalance <= 0) { resolve(false); return; }
+        db.ref('users/' + UID + '/coins').transaction(cur => {
+            if ((cur || 0) <= 0) return; // abort
+            return cur - 1;
+        }, (err, committed) => resolve(committed && !err));
+    });
+}
+
+// ===================================================
+// APIs
+// ===================================================
+const API_1MIN  = 'https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json';
+const API_30SEC = 'https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json';
+
+async function fetchPeriod() {
+    const url = (currentMode === '30sec') ? API_30SEC : API_1MIN;
+    const full = url + '?pageNo=1&pageSize=30&_t=' + Date.now();
+    try {
+        const r   = await fetch(full);
+        const d   = await r.json();
+        const lst = d?.data?.list;
+        if (lst && lst.length > 0) {
+            const next = (BigInt(lst[0].issueNumber) + 1n).toString();
+            document.getElementById('period-display').textContent = next;
+        }
+    } catch(e) {
+        try {
+            const proxy = 'https://corsproxy.io/?' + encodeURIComponent(full);
+            const r2    = await fetch(proxy);
+            const d2    = await r2.json();
+            const lst2  = d2?.data?.list;
+            if (lst2 && lst2.length > 0) {
+                const next = (BigInt(lst2[0].issueNumber) + 1n).toString();
+                document.getElementById('period-display').textContent = next;
+            }
+        } catch(e2) { /* silent fail */ }
+    }
+}
+
+// ===================================================
+// MODE SWITCH LOGIC
+// ===================================================
+let currentMode     = '1min';
+let predCount       = 0;
+let modeUseCount    = 0;
+let modeMaxUse      = randModeMax();
+
+function randModeMax() { return Math.floor(Math.random() * 4) + 1; }
+
+function getModeLabel()  { return currentMode === '30sec' ? 'WINGO 30 SEC' : 'WINGO 1 MIN'; }
+
+function tryModeSwitch() {
+    if (predCount === 0) return;
+    modeUseCount++;
+    if (modeUseCount >= modeMaxUse) {
+        if (currentMode === '1min') {
+            currentMode = '30sec';
+        } else {
+            currentMode = Math.random() < 0.5 ? '1min' : '30sec';
+        }
+        modeUseCount = 0;
+        modeMaxUse   = randModeMax();
+        showModePopup(currentMode);
+        document.getElementById('mode-label-display').textContent = getModeLabel();
+        fetchPeriod();
+    }
+}
+
+function showModePopup(mode) {
+    const popup = document.getElementById('mode-popup');
+    const txt   = document.getElementById('mode-popup-text');
+    txt.textContent = mode === '30sec' ? '⚡ 30 SEC FAST OPEN' : '🔄 1 MIN MODE';
+    popup.style.display = 'block';
+    setTimeout(() => { popup.style.display = 'none'; }, 2000);
+}
+
+// ===================================================
+// GENERATE PREDICTION
+// ===================================================
+async function generatePrediction() {
+    if (coinBalance <= 0) {
+        showCoinToast();
+        openBuyCoins();
+        return;
+    }
+
+    const predEl  = document.getElementById('pred-text');
+    const confVal = document.getElementById('conf-val');
+    const confFill= document.getElementById('conf-fill');
+
+    const ok = await deductCoin();
+    if (!ok) { openBuyCoins(); return; }
+
+    tryModeSwitch();
+
+    predEl.className = 'pred-text analyzing';
+    predEl.textContent = 'ANALYZING...';
+    confVal.textContent  = '--%';
+    confFill.style.width = '0%';
+
+    await fetchPeriod();
+
+    setTimeout(() => {
+        const result     = Math.random() < 0.5 ? 'BIG' : 'SMALL';
+        const confidence = Math.floor(Math.random() * 20) + 80;
+
+        predEl.textContent = result;
+        predEl.className   = 'pred-text ' + (result === 'BIG' ? 'big-mode' : 'small-mode');
+
+        confVal.textContent  = confidence + '%';
+        confFill.style.width = confidence + '%';
+
+        predCount++;
+    }, 800);
+}
+
+// ===================================================
+// COPY PERIOD
+// ===================================================
+function copyPeriod() {
+    const p = document.getElementById('period-display').textContent;
+    if (navigator.clipboard) { navigator.clipboard.writeText(p).catch(() => {}); }
+}
+
+// ===================================================
+// COIN TOAST
+// ===================================================
+function showCoinToast() {
+    const t = document.getElementById('coin-toast');
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+
+// ===================================================
+// PANEL OPEN / CLOSE
+// ===================================================
+function openPanel() {
+    document.getElementById('predictor-panel').style.display = 'block';
+    document.getElementById('modal-backdrop').style.display  = 'block';
+    fetchPeriod();
+}
+function closePanel() {
+    document.getElementById('predictor-panel').style.display = 'none';
+    hideBackdrop();
+}
+
+// ===================================================
+// BUY COINS
+// ===================================================
+function openBuyCoins() {
+    document.getElementById('buy-coins-modal').style.display  = 'block';
+    document.getElementById('modal-backdrop').style.display   = 'block';
+    document.getElementById('predictor-panel').style.display  = 'none';
+}
+function closeBuyCoins() {
+    document.getElementById('buy-coins-modal').style.display  = 'none';
+    hideBackdrop();
+}
+
+// ===================================================
+// SELECT PLAN  →  open payment modal
+// ===================================================
+let selAmount = 0, selCoins = 0, selImg = '306.png';
+
+function selectPlan(amount, coins, img) {
+    selAmount = amount;
+    selCoins  = coins;
+    selImg    = img;
+
+    document.getElementById('sp-amount').textContent  = '₹' + amount;
+    document.getElementById('sp-coins').textContent   = coins + ' Coins';
+    document.getElementById('sp-img').src             = img;
+    document.getElementById('pd-amount').textContent  = '₹' + amount;
+    document.getElementById('pd-coins').textContent   = coins + ' Coins';
+
+    document.getElementById('utr-input').value        = '';
+    document.getElementById('utr-form-wrap').style.display   = 'block';
+    document.getElementById('countdown-section').style.display = 'none';
+    document.getElementById('support-btn').style.display     = 'none';
+    document.getElementById('success-msg').style.display     = 'none';
+    document.getElementById('cd-status').textContent  = '⏳ Verifying payment...';
+    document.getElementById('cd-timer').textContent   = '5:00';
+    document.getElementById('cd-timer').style.display = 'block';
+    document.getElementById('cd-wait-txt').style.display = 'block';
+
+    document.getElementById('buy-coins-modal').style.display  = 'none';
+    document.getElementById('payment-modal').style.display    = 'block';
+    document.getElementById('modal-backdrop').style.display   = 'block';
+}
+
+// ===================================================
+// CLOSE PAYMENT
+// ===================================================
+function closePayment() {
+    document.getElementById('payment-modal').style.display = 'none';
+    hideBackdrop();
+    if (cdInterval) { clearInterval(cdInterval); cdInterval = null; }
+}
+
+// ===================================================
+// SUBMIT PAYMENT
+// ===================================================
+let cdInterval    = null;
+let activeTxnId   = null;
+let activeTxnRef  = null;
+
+async function submitPayment() {
+    const utr = document.getElementById('utr-input').value.trim();
+    if (utr.length < 6) {
+        alert('Please enter a valid UTR / Transaction ID (min 6 characters)');
+        return;
+    }
+
+    const txnId  = 'txn_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+    activeTxnId  = txnId;
+
+    const txnData = {
+        userId:    UID,
+        utr:       utr,
+        amount:    selAmount,
+        coins:     selCoins,
+        planImg:   selImg,
+        status:    'pending',
+        coinsCredited: false,
+        timestamp: Date.now()
+    };
+
+    try {
+        await db.ref('transactions/' + txnId).set(txnData);
+    } catch(e) {
+        alert('Network error. Please check connection and try again.');
+        return;
+    }
+
+    document.getElementById('utr-form-wrap').style.display      = 'none';
+    document.getElementById('countdown-section').style.display  = 'block';
+    document.getElementById('support-btn').style.display        = 'none';
+    document.getElementById('success-msg').style.display        = 'none';
+
+    startCountdown(txnId);
+    listenForApproval(txnId);
+}
+
+// ===================================================
+// COUNTDOWN
+// ===================================================
+function startCountdown(txnId) {
+    let secs = 300;
+    renderCountdown(secs);
+
+    cdInterval = setInterval(() => {
+        secs--;
+        renderCountdown(secs);
+        if (secs <= 0) {
+            clearInterval(cdInterval); cdInterval = null;
+            document.getElementById('cd-timer').style.display  = 'none';
+            document.getElementById('cd-wait-txt').style.display = 'none';
+            document.getElementById('cd-status').textContent   = '⌛ Time expired. Contact support.';
+            document.getElementById('support-btn').style.display = 'block';
+        }
+    }, 1000);
+}
+
+function renderCountdown(s) {
+    const m   = Math.floor(s / 60);
+    const sec = s % 60;
+    document.getElementById('cd-timer').textContent = m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+// ===================================================
+// LISTEN FOR ADMIN APPROVAL
+// ===================================================
+function listenForApproval(txnId) {
+    if (activeTxnRef) { activeTxnRef.off(); }
+    activeTxnRef = db.ref('transactions/' + txnId);
+
+    activeTxnRef.on('value', snap => {
+        const txn = snap.val();
+        if (!txn) return;
+
+        if (txn.status === 'approved' && !txn.coinsCredited) {
+            // Add coins atomically
+            db.ref('users/' + txn.userId + '/coins').transaction(cur => (cur || 0) + txn.coins);
+            // Mark credited
+            db.ref('transactions/' + txnId + '/coinsCredited').set(true);
+
+            if (cdInterval) { clearInterval(cdInterval); cdInterval = null; }
+
+            document.getElementById('cd-timer').style.display    = 'none';
+            document.getElementById('cd-wait-txt').style.display = 'none';
+            document.getElementById('cd-status').textContent     = '';
+            document.getElementById('support-btn').style.display = 'none';
+            document.getElementById('success-msg').style.display = 'block';
+
+            activeTxnRef.off();
+
+        } else if (txn.status === 'rejected') {
+            if (cdInterval) { clearInterval(cdInterval); cdInterval = null; }
+            document.getElementById('cd-timer').style.display    = 'none';
+            document.getElementById('cd-wait-txt').style.display = 'none';
+            document.getElementById('cd-status').textContent     = '❌ Payment rejected. Contact support.';
+            document.getElementById('support-btn').style.display = 'block';
+            activeTxnRef.off();
+        }
+    });
+}
+
+// ===================================================
+// BACKDROP
+// ===================================================
+function hideBackdrop() {
+    const anyOpen =
+        document.getElementById('predictor-panel').style.display  === 'block' ||
+        document.getElementById('buy-coins-modal').style.display   === 'block' ||
+        document.getElementById('payment-modal').style.display     === 'block';
+    if (!anyOpen) {
+        document.getElementById('modal-backdrop').style.display = 'none';
+    }
+}
+
+function backdropClick() {
+    if (document.getElementById('payment-modal').style.display === 'block')    { closePayment();   return; }
+    if (document.getElementById('buy-coins-modal').style.display === 'block')  { closeBuyCoins();  return; }
+    if (document.getElementById('predictor-panel').style.display === 'block')  { closePanel();     return; }
+}
+
+// ===================================================
+// FLOATING BUTTON DRAG
+// ===================================================
+(function() {
+    const btn = document.getElementById('floating-circle');
+    let startX, startY, moved = false;
+
+    btn.addEventListener('touchstart', e => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        moved  = false;
+    }, { passive: true });
+
+    btn.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+
+        const rect   = btn.getBoundingClientRect();
+        const newLeft = Math.max(0, Math.min(window.innerWidth  - 68, rect.left + dx));
+        const newTop  = Math.max(0, Math.min(window.innerHeight - 68, rect.top  + dy));
+
+        btn.style.left   = newLeft + 'px';
+        btn.style.top    = newTop  + 'px';
+        btn.style.right  = 'auto';
+        btn.style.bottom = 'auto';
+
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+    }, { passive: false });
+
+    btn.addEventListener('touchend', () => { if (!moved) openPanel(); });
+    btn.addEventListener('click',    () => { if (!moved) openPanel(); });
+})();
+
+// ===================================================
+// AUTO PERIOD REFRESH
+// ===================================================
+let periodInterval = null;
+
+// ===================================================
+// START APP
+// ===================================================
+function startApp() {
+    document.getElementById('game-frame').src              = 'https://bdg6742.com//#/register?invitationCode=6675221212113';
+    document.getElementById('entry-screen').style.display  = 'none';
+    document.getElementById('game-frame').style.display    = 'block';
+    document.getElementById('floating-circle').style.display = 'flex';
+
+    initCoinListener();
+    fetchPeriod();
+    periodInterval = setInterval(fetchPeriod, 3000);
+    modeMaxUse = randModeMax();
+}
+</script>
+</body>
+</html>
